@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <title>Leaflet – เพิ่ม/แก้ไข/เชื่อม/ลบ จุด พร้อมไอคอนสำหรับนักสืบ</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+  />
+  <style>
+    /* ---------- Basic Layout ---------- */
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: sans-serif;
+    }
+
+    #map {
+      width: 100%;
+      height: 100vh;
+    }
+
+    /* ---------- Toolbar (Icon Selection) ---------- */
+    .toolbar {
+      position: absolute;
+      top: 10px;
+      left: 50px;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      max-width: 700px;
+      transition: all 0.3s ease;
+    }
+
+    .toolbar.collapsed .toolbar-content {
+      max-height: 0;
+      padding: 0 10px;
+    }
+
+    .toolbar-header {
+      padding: 8px 12px;
+      background: #1976d2;
+      color: #fff;
+      border-radius: 6px 6px 0 0;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .toggle-arrow {
+      transition: transform 0.3s ease;
+    }
+
+    .toolbar.collapsed .toggle-arrow {
+      transform: rotate(180deg);
+    }
+
+    .toolbar-content {
+      padding: 10px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      transition: all 0.3s ease;
+      overflow: hidden;
+    }
+
+    .icon-btn {
+      width: 40px;
+      height: 40px;
+      border: 2px solid #ddd;
+      background: #fff;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      position: relative;
+      transition: all 0.2s;
+    }
+
+    .icon-btn:hover {
+      border-color: #1976d2;
+      background: #f5f5f5;
+    }
+
+    .icon-btn.selected {
+      border-color: #1976d2;
+      background: #e3f2fd;
+      box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.3);
+    }
+
+    .icon-btn .tooltip {
+      position: absolute;
+      bottom: -25px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 10px;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+
+    .icon-btn:hover .tooltip {
+      opacity: 1;
+    }
+
+    /* ---------- Connection Toolbar ---------- */
+    .connection-toolbar {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 200px;
+    }
+
+    .connection-toolbar h4 {
+      margin: 0 0 8px 0;
+      color: #1976d2;
+      font-size: 14px;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 4px;
+    }
+
+    .color-selector {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .color-btn {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 2px solid #ddd;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.2s;
+    }
+
+    .color-btn:hover {
+      transform: scale(1.05);
+      border-color: #666;
+    }
+
+    .color-btn.selected {
+      border-color: #333;
+      box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.3);
+      transform: scale(1.1);
+    }
+
+    .toggle-distance {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      background: #f5f5f5;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s;
+      font-size: 12px;
+    }
+
+    .toggle-distance:hover {
+      background: #eeeeee;
+    }
+
+    .toggle-distance input[type="checkbox"] {
+      margin: 0;
+    }
+
+    .connection-toolbar button {
+      padding: 6px 12px;
+      border: 1px solid #d32f2f;
+      background: #fff;
+      color: #d32f2f;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .connection-toolbar button:hover {
+      background: #f9ebeb;
+    }
+
+    /* ---------- Popup Elements ---------- */
+    .popup-btn {
+      margin: 4px 2px;
+      padding: 4px 8px;
+      background: #1976d2;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      border-radius: 3px;
+      font-size: 0.85em;
+      transition: background 0.2s;
+    }
+
+    .popup-btn:hover {
+      background: #1565c0;
+    }
+
+    .popup-btn.danger {
+      background: #d32f2f;
+    }
+
+    .popup-btn.danger:hover {
+      background: #c62828;
+    }
+
+    .popup-input {
+      width: 100%;
+      box-sizing: border-box;
+      margin: 4px 0;
+      padding: 4px;
+    }
+
+    .distance-tooltip {
+      background: rgba(255, 255, 255, 0.9);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 0.85em;
+      color: #000;
+      border: 1px solid #ccc;
+    }
+
+    .popup-content {
+      min-width: 200px;
+    }
+
+    .popup-row {
+      margin: 3px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .coord-label {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-family: monospace;
+      pointer-events: none;
+      white-space: nowrap;
+      z-index: 1000;
+      top: -25px;
+      left: 50%;
+      transform: translateX(-50%);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    }
+
+    .connection-controls {
+      display: flex;
+      gap: 4px;
+      margin-top: 6px;
+      flex-wrap: wrap;
+    }
+
+    .connection-controls button {
+      padding: 2px 6px;
+      font-size: 0.75em;
+      border: 1px solid #ddd;
+      background: #fff;
+      cursor: pointer;
+      border-radius: 2px;
+    }
+
+    .connection-controls button:hover {
+      background: #f0f0f0;
+    }
+
+    /* ---------- Custom Marker Icon Overrides ---------- */
+    .custom-marker-icon,
+    .leaflet-div-icon {
+      background: transparent !important;
+      border: none !important;
+    }
+
+    .selected-marker-icon {
+      filter: hue-rotate(120deg) brightness(1.2);
+    }
+
+    /* ---------- Marker List Table ---------- */
+    #marker-list-container {
+      position: absolute;
+      bottom: 10px;
+      left: 50px;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      padding: 10px;
+      max-height: 40%;
+      overflow-y: auto;
+      width: calc(100% - 100px);
+      max-width: 700px;
+    }
+
+    #marker-list-container h3 {
+      margin: 0 0 6px 0;
+      font-size: 16px;
+      color: #1976d2;
+    }
+
+    #marker-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 14px;
+    }
+
+    #marker-table th,
+    #marker-table td {
+      padding: 8px;
+      border: 1px solid #ccc;
+    }
+
+    #marker-table thead tr {
+      background: #1976d2;
+      color: #fff;
+    }
+
+    #marker-table tbody tr:hover {
+      background: #f5f5f5;
+    }
+
+    #marker-table button {
+      margin-right: 4px;
+      padding: 2px 6px;
+      font-size: 0.85em;
+      cursor: pointer;
+      border: 1px solid #1976d2;
+      background: #fff;
+      color: #1976d2;
+      border-radius: 3px;
+      transition: background 0.2s;
+    }
+
+    #marker-table button:hover {
+      background: #e3f2fd;
+    }
+
+    #marker-table .delete-btn {
+      color: #d32f2f;
+      border-color: #d32f2f;
+    }
+
+    #marker-table .delete-btn:hover {
+      background: #fdecea;
+    }
+  </style>
+</head>
+<body>
+  <!-- --------- Toolbar: Select Icon --------- -->
+  <div class="toolbar" id="toolbar">
+    <div class="toolbar-header" onclick="toggleToolbar()">
+      <span>🔧 เลือกไอคอน</span>
+      <span class="toggle-arrow">▼</span>
+    </div>
+    <div class="toolbar-content">
+      <div class="icon-btn selected" data-icon="default" title="จุดทั่วไป">
+        <i class="fas fa-map-marker-alt" style="color: #d32f2f;"></i>
+        <div class="tooltip">จุดทั่วไป</div>
+      </div>
+      <div class="icon-btn" data-icon="camera" title="กล้องวงจรปิด">
+        <i class="fas fa-video" style="color: #1976d2;"></i>
+        <div class="tooltip">กล้องวงจรปิด</div>
+      </div>
+      <div class="icon-btn" data-icon="car" title="รถยนต์">
+        <i class="fas fa-car" style="color: #2e7d32;"></i>
+        <div class="tooltip">รถยนต์</div>
+      </div>
+      <div class="icon-btn" data-icon="trash" title="ถังขยะ">
+        <i class="fas fa-trash-can" style="color: #795548;"></i>
+        <div class="tooltip">ถังขยะ</div>
+      </div>
+      <div class="icon-btn" data-icon="person" title="คน/พยาน">
+        <i class="fas fa-user" style="color: #ff9800;"></i>
+        <div class="tooltip">คน/พยาน</div>
+      </div>
+      <div class="icon-btn" data-icon="building" title="อาคาร/สถานที่">
+        <i class="fas fa-building" style="color: #607d8b;"></i>
+        <div class="tooltip">อาคาร/สถานที่</div>
+      </div>
+      <div class="icon-btn" data-icon="crime" title="จุดเกิดเหตุ">
+        <i class="fas fa-exclamation-triangle" style="color: #f44336;"></i>
+        <div class="tooltip">จุดเกิดเหตุ</div>
+      </div>
+      <div class="icon-btn" data-icon="evidence" title="หลักฐาน">
+        <i class="fas fa-search" style="color: #9c27b0;"></i>
+        <div class="tooltip">หลักฐาน</div>
+      </div>
+      <div class="icon-btn" data-icon="phone" title="สัญญาณโทรศัพท์">
+        <i class="fas fa-signal" style="color: #00bcd4;"></i>
+        <div class="tooltip">สัญญาณโทรศัพท์</div>
+      </div>
+      <div class="icon-btn" data-icon="atm" title="ตู้ ATM">
+        <i class="fas fa-credit-card" style="color: #4caf50;"></i>
+        <div class="tooltip">ตู้ ATM</div>
+      </div>
+      <div class="icon-btn" data-icon="gas" title="ปั๊มน้ำมัน">
+        <i class="fas fa-gas-pump" style="color: #ff5722;"></i>
+        <div class="tooltip">ปั๊มน้ำมัน</div>
+      </div>
+      <div class="icon-btn" data-icon="hospital" title="โรงพยาบาล">
+        <i class="fas fa-hospital" style="color: #e91e63;"></i>
+        <div class="tooltip">โรงพยาบาล</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- --------- Connection Toolbar --------- -->
+  <div class="connection-toolbar">
+    <h4><i class="fas fa-link"></i> ควบคุมเส้นเชื่อม</h4>
+    <div>
+      <label style="font-size: 12px; color: #666; margin-bottom: 4px; display: block;">สีเส้นเชื่อม:</label>
+      <div class="color-selector">
+        <div class="color-btn selected" data-color="#1976d2" style="background: #1976d2;" title="น้ำเงิน"></div>
+        <div class="color-btn" data-color="#d32f2f" style="background: #d32f2f;" title="แดง"></div>
+        <div class="color-btn" data-color="#2e7d32" style="background: #2e7d32;" title="เขียว"></div>
+        <div class="color-btn" data-color="#ff9800" style="background: #ff9800;" title="ส้ม"></div>
+        <div class="color-btn" data-color="#9c27b0" style="background: #9c27b0;" title="ม่วง"></div>
+        <div class="color-btn" data-color="#795548" style="background: #795548;" title="น้ำตาล"></div>
+        <div class="color-btn" data-color="#607d8b" style="background: #607d8b;" title="เทาน้ำเงิน"></div>
+        <div class="color-btn" data-color="#000000" style="background: #000000;" title="ดำ"></div>
+      </div>
+    </div>
+    <label class="toggle-distance">
+      <input type="checkbox" id="show-distance" checked />
+      แสดงระยะทาง
+    </label>
+    <button onclick="clearAllConnections()">
+      <i class="fas fa-trash"></i> ลบเส้นเชื่อมทั้งหมด
+    </button>
+  </div>
+
+  <!-- --------- Map Container --------- -->
+  <div id="map"></div>
+
+  <!-- --------- Marker List Table --------- -->
+  <div id="marker-list-container">
+    <h3>รายการจุดทั้งหมด</h3>
+    <table id="marker-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>ประเภท</th>
+          <th>ชื่อ (Label)</th>
+          <th>Lat</th>
+          <th>Lng</th>
+          <th>จัดการ</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Rows will be populated by JavaScript -->
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // ---------- Global State ----------
+    const markers = {};       // { id: L.marker }
+    const entities = {};      // { id: { id, iconType, label } }
+    let connections = [];     // [ [id1, id2, color], ... ]
+    let nextId = 1;           // Auto-increment ID for markers
+    let selectedMarkerId = null; // For linking markers
+    let selectedIconType = 'default'; // Current icon selection
+    let selectedLineColor = '#1976d2'; // Current line color
+    let showDistance = true;  // Show/hide distance tooltip
+
+    // Icon descriptions for popups and table
+    const iconDescriptions = {
+      default: 'จุดทั่วไป',
+      camera: 'กล้องวงจรปิด',
+      car: 'รถยนต์',
+      trash: 'ถังขยะ',
+      person: 'คน/พยาน',
+      building: 'อาคาร/สถานที่',
+      crime: 'จุดเกิดเหตุ',
+      evidence: 'หลักฐาน',
+      phone: 'สัญญาณโทรศัพท์',
+      atm: 'ตู้ ATM',
+      gas: 'ปั๊มน้ำมัน',
+      hospital: 'โรงพยาบาล'
+    };
+
+    // ---------- Initialize Map ----------
+    const map = L.map('map').setView([13.736717, 100.523186], 7);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Layer group for drawing connections (polylines)
+    const connectionLayerGroup = L.layerGroup().addTo(map);
+
+    // ---------- Toolbar Event Handlers ----------
+    function toggleToolbar() {
+      document.getElementById('toolbar').classList.toggle('collapsed');
+    }
+
+    // Icon selection buttons
+    document.querySelectorAll('.icon-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelector('.icon-btn.selected')?.classList.remove('selected');
+        btn.classList.add('selected');
+        selectedIconType = btn.getAttribute('data-icon');
+      });
+    });
+
+    // Line color buttons
+    document.querySelectorAll('.color-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelector('.color-btn.selected')?.classList.remove('selected');
+        btn.classList.add('selected');
+        selectedLineColor = btn.getAttribute('data-color');
+      });
+    });
+
+    // Toggle distance display
+    document.getElementById('show-distance').addEventListener('change', (e) => {
+      showDistance = e.target.checked;
+      redrawAllConnections();
+    });
+
+    // ---------- Marker Creation & Management ----------
+
+    // Create a custom Leaflet divIcon based on iconType
+    function createCustomIcon(iconType) {
+      const iconConfig = {
+        default: {
+          html: '<i class="fas fa-map-marker-alt" style="color: #d32f2f; font-size: 24px;"></i>',
+        },
+        camera: {
+          html: '<i class="fas fa-video" style="color: #1976d2; font-size: 20px;"></i>',
+        },
+        car: {
+          html: '<i class="fas fa-car" style="color: #2e7d32; font-size: 20px;"></i>',
+        },
+        trash: {
+          html: '<i class="fas fa-trash-can" style="color: #795548; font-size: 20px;"></i>',
+        },
+        person: {
+          html: '<i class="fas fa-user" style="color: #ff9800; font-size: 20px;"></i>',
+        },
+        building: {
+          html: '<i class="fas fa-building" style="color: #607d8b; font-size: 20px;"></i>',
+        },
+        crime: {
+          html: '<i class="fas fa-exclamation-triangle" style="color: #f44336; font-size: 20px;"></i>',
+        },
+        evidence: {
+          html: '<i class="fas fa-search" style="color: #9c27b0; font-size: 20px;"></i>',
+        },
+        phone: {
+          html: '<i class="fas fa-signal" style="color: #00bcd4; font-size: 20px;"></i>',
+        },
+        atm: {
+          html: '<i class="fas fa-credit-card" style="color: #4caf50; font-size: 20px;"></i>',
+        },
+        gas: {
+          html: '<i class="fas fa-gas-pump" style="color: #ff5722; font-size: 20px;"></i>',
+        },
+        hospital: {
+          html: '<i class="fas fa-hospital" style="color: #e91e63; font-size: 20px;"></i>',
+        }
+      };
+
+      const config = iconConfig[iconType] || iconConfig.default;
+      return L.divIcon({
+        html: `
+          <div style="
+            background: #fff;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid rgba(0,0,0,0.2);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+          ">
+            ${config.html}
+          </div>
+        `,
+        className: 'custom-marker-icon',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+        popupAnchor: [0, -16]
+      });
+    }
+
+    // Add a new marker at clicked location
+    function addMarker(latlng) {
+      const id = nextId++;
+      const iconType = selectedIconType;
+      const marker = L.marker(latlng, {
+        icon: createCustomIcon(iconType),
+        draggable: true
+      }).addTo(map);
+
+      markers[id] = marker;
+      entities[id] = {
+        id,
+        iconType,
+        label: `${iconDescriptions[iconType]} ${id}`
+      };
+
+      // Marker event bindings
+      marker.on('click', (e) => {
+        e.originalEvent.stopPropagation();
+        onMarkerClick(id);
+      });
+
+      marker.on('dragend', () => {
+        updatePopupContent(id);
+        redrawAllConnections();
+        updateMarkerTable();
+      });
+
+      marker.on('dblclick', (e) => {
+        e.originalEvent.stopPropagation();
+        deleteMarker(id);
+      });
+
+      marker.on('popupopen', () => {
+        bindPopupControls(id);
+      });
+
+      // Open popup immediately after adding
+      updatePopupContent(id);
+      marker.openPopup();
+      updateMarkerTable();
+    }
+
+    // Delete a marker and its connections
+    function deleteMarker(id) {
+      const marker = markers[id];
+      if (marker) {
+        map.removeLayer(marker);
+      }
+      delete markers[id];
+      delete entities[id];
+
+      // Remove any connections involving this marker
+      connections = connections.filter(conn => conn[0] !== id && conn[1] !== id);
+      if (selectedMarkerId === id) selectedMarkerId = null;
+
+      redrawAllConnections();
+      updateMarkerTable();
+    }
+
+    // ---------- Marker Click & Linking ----------
+
+    function onMarkerClick(id) {
+      if (selectedMarkerId === null) {
+        // First click: highlight this marker
+        selectedMarkerId = id;
+        highlightMarker(id, true);
+      } else if (selectedMarkerId !== id) {
+        // Second click: create a connection
+        connections.push([selectedMarkerId, id, selectedLineColor]);
+        redrawAllConnections();
+        highlightMarker(selectedMarkerId, false);
+        selectedMarkerId = null;
+      } else {
+        // Clicked the same marker: unselect
+        highlightMarker(id, false);
+        selectedMarkerId = null;
+      }
+    }
+
+    function highlightMarker(id, shouldHighlight) {
+      const marker = markers[id];
+      if (!marker) return;
+      const iconEl = marker._icon;
+      if (shouldHighlight) {
+        iconEl.classList.add('selected-marker-icon');
+      } else {
+        iconEl.classList.remove('selected-marker-icon');
+      }
+    }
+
+    // ---------- Draw & Manage Connections ----------
+
+    function redrawAllConnections() {
+      connectionLayerGroup.clearLayers();
+
+      connections.forEach(([id1, id2, color]) => {
+        const m1 = markers[id1];
+        const m2 = markers[id2];
+        if (!m1 || !m2) return;
+
+        const latlng1 = m1.getLatLng();
+        const latlng2 = m2.getLatLng();
+        const distanceMeters = latlng1.distanceTo(latlng2);
+        let distanceText = distanceMeters >= 1000
+          ? (distanceMeters / 1000).toFixed(3) + ' km'
+          : distanceMeters.toFixed(1) + ' m';
+
+        const poly = L.polyline([latlng1, latlng2], {
+          color: color || '#1976d2',
+          weight: 3,
+          opacity: 0.7
+        }).addTo(connectionLayerGroup);
+
+        if (showDistance) {
+          poly.bindTooltip(distanceText, {
+            permanent: true,
+            direction: 'center',
+            className: 'distance-tooltip'
+          }).openTooltip();
+        }
+      });
+    }
+
+    function deleteConnection(id1, id2) {
+      connections = connections.filter(conn =>
+        !(conn[0] === id1 && conn[1] === id2) &&
+        !(conn[0] === id2 && conn[1] === id1)
+      );
+      redrawAllConnections();
+      updatePopupContent(id1);
+      updatePopupContent(id2);
+      map.closePopup();
+    }
+
+    function clearAllConnections() {
+      if (connections.length === 0) {
+        alert('ไม่มีเส้นเชื่อมให้ลบ');
+        return;
+      }
+      if (confirm('คุณต้องการลบเส้นเชื่อมทั้งหมดหรือไม่?')) {
+        connections = [];
+        selectedMarkerId = null;
+        redrawAllConnections();
+        Object.keys(markers).forEach(key => highlightMarker(parseInt(key), false));
+        alert('ลบเส้นเชื่อมทั้งหมดแล้ว');
+      }
+    }
+
+    // ---------- Popup Content & Actions ----------
+
+    function updatePopupContent(id) {
+      const marker = markers[id];
+      if (!marker) return;
+
+      const { lat, lng } = marker.getLatLng();
+      const entity = entities[id];
+      const iconDesc = iconDescriptions[entity.iconType] || 'ไม่ระบุ';
+
+      // Find connections related to this marker
+      const relatedConnections = connections.filter(conn => conn[0] === id || conn[1] === id);
+      let connectionsHtml = '';
+
+      if (relatedConnections.length > 0) {
+        connectionsHtml = `
+          <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #ddd;">
+            <strong style="font-size: 0.85em;">เชื่อมต่อกับ:</strong>
+            <div class="connection-controls">
+        `;
+
+        relatedConnections.forEach((conn) => {
+          const otherId = conn[0] === id ? conn[1] : conn[0];
+          const otherEntity = entities[otherId];
+          if (otherEntity) {
+            connectionsHtml += `
+              <button onclick="deleteConnection(${conn[0]}, ${conn[1]})" title="ลบเส้นเชื่อมกับ ${otherEntity.label}">
+                <i class="fas fa-times" style="color: #d32f2f;"></i> ${otherEntity.label}
+              </button>
+            `;
+          }
+        });
+
+        connectionsHtml += '</div></div>';
+      }
+
+      const html = `
+        <div class="popup-content">
+          <div class="popup-row">
+            <strong>ประเภท:</strong> <span style="color: #1976d2;">${iconDesc}</span>
+          </div>
+          <div class="popup-row">
+            <strong>ชื่อ:</strong> <span id="label-text-${id}">${entity.label}</span>
+          </div>
+          <div class="popup-row">
+            <strong>Lat:</strong> ${lat.toFixed(6)}
+          </div>
+          <div class="popup-row">
+            <strong>Lng:</strong> ${lng.toFixed(6)}
+          </div>
+          ${connectionsHtml}
+          <div style="margin-top: 8px; text-align: center;">
+            <button class="popup-btn" id="edit-btn-${id}">แก้ไข</button>
+            <button class="popup-btn" id="change-icon-btn-${id}">เปลี่ยนไอคอน</button>
+            <button class="popup-btn danger" id="delete-btn-${id}">ลบ</button>
+          </div>
+        </div>
+      `;
+      marker.bindPopup(html);
+    }
+
+    // Bind click handlers to popup buttons after popup is opened
+    function bindPopupControls(id) {
+      const editBtn = document.getElementById(`edit-btn-${id}`);
+      const changeIconBtn = document.getElementById(`change-icon-btn-${id}`);
+      const deleteBtn = document.getElementById(`delete-btn-${id}`);
+
+      if (editBtn) {
+        editBtn.addEventListener('click', (evt) => {
+          evt.stopPropagation();
+          openLabelEditor(id);
+        });
+      }
+
+      if (changeIconBtn) {
+        changeIconBtn.addEventListener('click', (evt) => {
+          evt.stopPropagation();
+          openIconChanger(id);
+        });
+      }
+
+      if (deleteBtn) {
+        deleteBtn.addEventListener('click', (evt) => {
+          evt.stopPropagation();
+          if (confirm('คุณต้องการลบจุดนี้หรือไม่?')) {
+            deleteMarker(id);
+          }
+        });
+      }
+    }
+
+    // ---------- Edit Label ----------
+
+    function openLabelEditor(id) {
+      const marker = markers[id];
+      if (!marker) return;
+
+      const currentLabel = entities[id].label;
+      const html = `
+        <div class="popup-content">
+          <label for="input-${id}"><strong>แก้ไขชื่อ:</strong></label><br/>
+          <input type="text" id="input-${id}" class="popup-input" value="${currentLabel}" /><br/>
+          <div style="text-align: center; margin-top: 8px;">
+            <button class="popup-btn" id="save-btn-${id}">บันทึก</button>
+            <button class="popup-btn" id="cancel-btn-${id}">ยกเลิก</button>
+          </div>
+        </div>
+      `;
+      marker.setPopupContent(html);
+      marker.openPopup();
+
+      setTimeout(() => {
+        const saveBtn = document.getElementById(`save-btn-${id}`);
+        const cancelBtn = document.getElementById(`cancel-btn-${id}`);
+        const inputField = document.getElementById(`input-${id}`);
+
+        if (saveBtn) {
+          saveBtn.addEventListener('click', (evt) => {
+            evt.stopPropagation();
+            const newLabel = inputField.value.trim() || entities[id].label;
+            entities[id].label = newLabel;
+            updatePopupContent(id);
+            updateMarkerTable();
+            marker.openPopup();
+          });
+        }
+
+        if (cancelBtn) {
+          cancelBtn.addEventListener('click', (evt) => {
+            evt.stopPropagation();
+            updatePopupContent(id);
+            updateMarkerTable();
+            marker.openPopup();
+          });
+        }
+
+        if (inputField) {
+          inputField.addEventListener('keypress', (evt) => {
+            if (evt.key === 'Enter') {
+              evt.preventDefault();
+              const newLabel = inputField.value.trim() || entities[id].label;
+              entities[id].label = newLabel;
+              updatePopupContent(id);
+              updateMarkerTable();
+              marker.openPopup();
+            }
+          });
+          inputField.focus();
+          inputField.select();
+        }
+      }, 10);
+    }
+
+    // ---------- Change Icon ----------
+
+    function openIconChanger(id) {
+      const marker = markers[id];
+      if (!marker) return;
+
+      const currentIconType = entities[id].iconType;
+      let optionsHtml = '';
+      Object.keys(iconDescriptions).forEach(iconType => {
+        const selected = iconType === currentIconType ? 'selected' : '';
+        optionsHtml += `<option value="${iconType}" ${selected}>${iconDescriptions[iconType]}</option>`;
+      });
+
+      const html = `
+        <div class="popup-content">
+          <label for="icon-select-${id}"><strong>เลือกไอคอน:</strong></label><br/>
+          <select id="icon-select-${id}" class="popup-input">${optionsHtml}</select><br/>
+          <div style="text-align: center; margin-top: 8px;">
+            <button class="popup-btn" id="save-icon-btn-${id}">บันทึก</button>
+            <button class="popup-btn" id="cancel-icon-btn-${id}">ยกเลิก</button>
+          </div>
+        </div>
+      `;
+      marker.setPopupContent(html);
+      marker.openPopup();
+
+      setTimeout(() => {
+        const saveBtn = document.getElementById(`save-icon-btn-${id}`);
+        const cancelBtn = document.getElementById(`cancel-icon-btn-${id}`);
+        const selectField = document.getElementById(`icon-select-${id}`);
+
+        if (saveBtn) {
+          saveBtn.addEventListener('click', (evt) => {
+            evt.stopPropagation();
+            const newIconType = selectField.value;
+            entities[id].iconType = newIconType;
+            marker.setIcon(createCustomIcon(newIconType));
+            updatePopupContent(id);
+            updateMarkerTable();
+            marker.openPopup();
+          });
+        }
+
+        if (cancelBtn) {
+          cancelBtn.addEventListener('click', (evt) => {
+            evt.stopPropagation();
+            updatePopupContent(id);
+            updateMarkerTable();
+            marker.openPopup();
+          });
+        }
+      }, 10);
+    }
+
+    // ---------- Marker List Table ----------
+
+    function updateMarkerTable() {
+      const tbody = document.querySelector('#marker-table tbody');
+      tbody.innerHTML = ''; // Clear existing rows
+
+      Object.keys(entities).forEach(key => {
+        const id = parseInt(key, 10);
+        const entity = entities[id];
+        const marker = markers[id];
+        if (!entity || !marker) return;
+
+        const { lat, lng } = marker.getLatLng();
+        const typeName = iconDescriptions[entity.iconType] || '-';
+        const label = entity.label || `(${id})`;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${id}</td>
+          <td>${typeName}</td>
+          <td>${label}</td>
+          <td>${lat.toFixed(6)}</td>
+          <td>${lng.toFixed(6)}</td>
+          <td>
+            <button onclick="focusOnMarker(${id})">แสดง</button>
+            <button class="delete-btn" onclick="tableDeleteMarker(${id})">ลบ</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function focusOnMarker(id) {
+      const marker = markers[id];
+      if (!marker) return;
+      map.setView(marker.getLatLng(), Math.max(map.getZoom(), 14), { animate: true });
+      marker.openPopup();
+    }
+
+    function tableDeleteMarker(id) {
+      if (confirm(`คุณต้องการลบจุด ID ${id} หรือไม่?`)) {
+        deleteMarker(id);
+        updateMarkerTable();
+      }
+    }
+
+    // ---------- Map Click to Add Marker ----------
+    map.on('click', (e) => {
+      if (e.originalEvent._stopped) return; // Prevent adding when clicking on popup elements
+      addMarker(e.latlng);
+    });
+
+    // Initial table update (in case of pre-existing markers)
+    updateMarkerTable();
+  </script>
+</body>
+</html>
