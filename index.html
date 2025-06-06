@@ -11,6 +11,11 @@
     rel="stylesheet"
     href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
   />
+  <!-- เพิ่ม CSS ของ Leaflet Control Geocoder -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css"
+  />
   <style>
     /* ---------- Basic Layout ---------- */
     html, body {
@@ -124,7 +129,7 @@
     /* ---------- Connection Toolbar ---------- */
     .connection-toolbar {
       position: absolute;
-      top: 10px;
+      top: 50px;
       right: 10px;
       z-index: 1000;
       background: rgba(255, 255, 255, 0.95);
@@ -433,17 +438,14 @@
         <i class="fas fa-hospital" style="color: #e91e63;"></i>
         <div class="tooltip">โรงพยาบาล</div>
       </div>
-
       <div class="icon-btn" data-icon="boat" title="เรือ">
         <i class="fas fa-ship" style="color: #009688;"></i>
         <div class="tooltip">เรือ</div>
       </div>
-
       <div class="icon-btn" data-icon="airplane" title="เครื่องบิน">
         <i class="fas fa-plane" style="color: #3f51b5;"></i>
         <div class="tooltip">เครื่องบิน</div>
       </div>
-
       <div class="icon-btn" data-icon="police" title="ตำรวจ">
         <i class="fas fa-shield-alt" style="color: #0d47a1;"></i>
         <div class="tooltip">ตำรวจ/Badge</div>
@@ -501,6 +503,9 @@
 
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- JS ของ Leaflet Control Geocoder -->
+  <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+
   <script>
     // ---------- Global State ----------
     const markers = {};       // { id: L.marker }
@@ -533,6 +538,18 @@
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);
+
+    // ---------- Geocoder Control: ค้นหาชื่อสถานที่ ----------
+    const geocoderControl = L.Control.geocoder({
+      defaultMarkGeocode: false,
+      placeholder: 'ค้นหาสถานที่...'
+    })
+    .on('markgeocode', function(e) {
+      const latlng = e.geocode.center;
+      map.setView(latlng, 14);
+      addMarker(latlng);
+    })
+    .addTo(map);
 
     // Layer group for drawing connections (polylines)
     const connectionLayerGroup = L.layerGroup().addTo(map);
